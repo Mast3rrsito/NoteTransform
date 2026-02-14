@@ -1,161 +1,129 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>NoteTransform - MIDI to Minecraft</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
-    header { background: linear-gradient(to right, #182848, #4b6cb7); color:white; width:100%; text-align:center; padding:2rem; box-shadow:0 4px 8px rgba(0,0,0,0.2);}
-    h1 { margin:0; font-size:2rem; }
-    main { max-width:900px; width:100%; padding:2rem; display:flex; flex-direction:column; gap:1rem; }
-    #dropZone { border:2px dashed #4b6cb7; border-radius:12px; padding:2rem; text-align:center; color:#4b6cb7; font-weight:600; cursor:pointer; transition:0.2s; }
-    #dropZone.hover { background:#4b6cb7; color:white; }
-    .controls { display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; margin-top:1rem; }
-    button, input[type=file] { padding:0.6rem 1rem; border-radius:8px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; }
-    button { background:#4b6cb7; color:white; transition:0.2s; }
-    button:hover { background:#182848; }
-    table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; border-radius:8px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.08); }
-    thead th { background:#4b6cb7; color:white; padding:0.9rem 1rem; text-align:left; position:sticky; top:0; }
-    th, td { padding:0.9rem 1rem; border-bottom:1px solid #eee; text-align:left; }
-    tbody tr:nth-child(even) td { background: #fff; }
-    #tableWrap { max-height:420px; overflow:auto; border-radius:8px; }
-    .muted { color:#666; font-size:0.95rem; }
-  </style>
+<meta charset="UTF-8">
+<title>MIDI → NoteBlock</title>
+<style>
+body { font-family:sans-serif; padding:2rem; background:#f0f2f5; }
+#dropZone { border:2px dashed #4b6cb7; padding:2rem; text-align:center; margin-bottom:1rem; cursor:pointer; }
+#dropZone.hover { background:#4b6cb7; color:white; }
+table { width:100%; border-collapse:collapse; margin-top:1rem; }
+th, td { padding:0.5rem; border:1px solid #ccc; text-align:left; }
+thead { background:#4b6cb7; color:white; }
+button { padding:0.5rem 1rem; margin:0.5rem 0; cursor:pointer; }
+</style>
 </head>
 <body>
-  <header>
-    <h1>NoteTransform</h1>
-    <p>MIDI to Minecraft Note Blocks</p>
-  </header>
-  <main>
-    <div id="dropZone">Drag & Drop your MIDI file here</div>
-    <div class="controls">
-      <input type="file" id="fileInput" accept=".mid">
-      <button id="processBtn">Process MIDI</button>
-    </div>
 
-    <div id="tableWrap">
-      <table id="resultTable">
-        <thead>
-          <tr><th>Tick</th><th>Delta</th><th>Note</th><th>Block</th><th>Pitch MC</th></tr>
-        </thead>
-        <tbody id="resultBody">
-          <!-- rows -->
-        </tbody>
-      </table>
-    </div>
-  </main>
+<h1>MIDI → Minecraft NoteBlock</h1>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
-  <script>
-  const dropZone = document.getElementById('dropZone');
-  const fileInput = document.getElementById('fileInput');
-  const processBtn = document.getElementById('processBtn');
-  const resultBody = document.getElementById('resultBody');
-  let midiFile = null;
+<div id="dropZone">Arrastra tu archivo MIDI aquí</div>
+<input type="file" id="fileInput" accept=".mid">
+<br>
+<button id="processBtn">Procesar MIDI</button>
+<button id="downloadBtn">Descargar JSON</button>
 
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('hover'); });
-  dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('hover'); });
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('hover');
-    if (e.dataTransfer.files.length) {
-      midiFile = e.dataTransfer.files[0];
-      dropZone.textContent = `Loaded: ${midiFile.name}`;
-    }
-  });
-  fileInput.addEventListener('change', e => {
-    if (e.target.files.length) {
-      midiFile = e.target.files[0];
-      dropZone.textContent = `Loaded: ${midiFile.name}`;
-    }
-  });
+<table>
+<thead>
+<tr><th>Tick</th><th>Delta</th><th>Nota</th><th>Bloque</th><th>Pitch MC</th></tr>
+</thead>
+<tbody id="resultBody"></tbody>
+</table>
 
-  const gmProgramMap = {
-    1:{name:"Harp",block:"minecraft:gold_block",octave:0},
-    2:{name:"Pling",block:"minecraft:clay",octave:0},
-    25:{name:"Guitar",block:"minecraft:emerald_block",octave:1},
-    33:{name:"Bass",block:"minecraft:stone",octave:2},
-    74:{name:"Flute",block:"minecraft:bone_block",octave:-1},
-    10:{name:"Bells",block:"minecraft:glowstone",octave:-2},
-    14:{name:"Xylophone",block:"minecraft:iron_block",octave:-2},
-    106:{name:"Banjo",block:"minecraft:clay",octave:0},
-    3:{name:"Pling",block:"minecraft:clay",octave:0},
-    81:{name:"Bit",block:"minecraft:redstone_block",octave:0},
-  };
+<script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
+<script>
+// ------------------ Mapeo GM → MC ------------------
+const gmToMC = {
+  1:{name:"Piano 1",block:"Harp",octave:0},2:{name:"Piano 2",block:"Pling",octave:0},3:{name:"Piano 3",block:"Pling",octave:0},
+  5:{name:"Nylon-str.Gt",block:"Guitar",octave:1},6:{name:"Flute",block:"Flute",octave:-1},10:{name:"Glockenspiel",block:"Bells",octave:-2},
+  12:{name:"Vibraphone",block:"Iron Xylophone",octave:0},14:{name:"Xylophone",block:"Xylophone",octave:-2},25:{name:"Acoustic Guitar",block:"Guitar",octave:1},
+  33:{name:"Acoustic Bass",block:"Bass",octave:2},81:{name:"Lead 1 (square)",block:"Bit",octave:0},106:{name:"Banjo",block:"Banjo",octave:0},
+  3:{name:"Pling",block:"Pling",octave:0},74:{name:"Flute",block:"Flute",octave:-1}
+};
 
-  const percussionMap = {
-    35:{block:"minecraft:stone",noteVal:4},
-    36:{block:"minecraft:stone",noteVal:8},
-    38:{block:"minecraft:gravel",noteVal:15},
-    42:{block:"minecraft:clay",noteVal:21},
-    46:{block:"minecraft:gravel",noteVal:22},
-    59:{block:"minecraft:gravel",noteVal:24},
-  };
+const percussionMap = {
+  35:{block:"Bass Drum",pitch:4},36:{block:"Bass Drum",pitch:8},38:{block:"Snare Drum",pitch:15},
+  42:{block:"Hi-Hat",pitch:21},46:{block:"Hi-Hat",pitch:22},59:{block:"Tuba",pitch:24},
+  60:{block:"Cow Bell",pitch:16},61:{block:"Cow Bell",pitch:9},62:{block:"Click",pitch:-3},
+  63:{block:"Cow Bell",pitch:-1},64:{block:"Cow Bell",pitch:-9},65:{block:"Cow Bell",pitch:5},
+  66:{block:"Cow Bell",pitch:-4},67:{block:"Xylophone",pitch:12},68:{block:"Xylophone",pitch:5}
+};
 
-  function clampNote(n){return Math.max(0,Math.min(24,n));}
-  function secondsToMcTicks(s){return Math.round(s*20);}
-  function pickTopNotes(notes,maxCount=3){return notes.sort((a,b)=>b.velocity-a.velocity).slice(0,maxCount);}
+function clampMC(n){ return Math.max(0, Math.min(24, n)); }
 
-  async function processMidi(){
-    if(!midiFile){alert("Load a MIDI first!"); return;}
-    resultBody.innerHTML="";
-    const buffer = await midiFile.arrayBuffer();
-    const midi = new Midi(buffer);
+// ------------------ Manejo de archivos ------------------
+let midiFile=null;
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+const resultBody=document.getElementById('resultBody');
+let finalData=[];
 
-    const tickMap = new Map();
-    midi.tracks.forEach(track=>{
-      const programNumber = (track.instrument && typeof track.instrument.number==='number') ? track.instrument.number+1:null;
-      const isTrackPercussion = !!track.isPercussion;
-      track.notes.forEach(note=>{
-        const mcTick = secondsToMcTicks(note.time);
-        const midiPitch = note.midi;
-        const velocity = note.velocity || 0.8;
-        let gmProgram = programNumber;
-        let isPercussion = isTrackPercussion || (note.midi>=35&&note.midi<=81&&(track.channel===9||track.channel===10||programNumber===null));
-        let mapped=null;
-        if(isPercussion){
-          mapped = percussionMap[midiPitch]||{block:"minecraft:stone",noteVal:12};
-          mapped.note = clampNote(mapped.noteVal ?? 12);
-          mapped.name = "Percussion";
-        } else {
-          const gm = gmProgram||1;
-          const info = gmProgramMap[gm]||{name:"Harp",block:"minecraft:gold_block",octave:0};
-          let base = 12+(info.octave||0)*12;
-          let mcNote = Math.round(midiPitch-60+base);
-          mcNote=clampNote(mcNote);
-          mapped={block:info.block,note:mcNote,name:info.name||"Harp"};
-        }
+dropZone.addEventListener('dragover',e=>{ e.preventDefault(); dropZone.classList.add('hover'); });
+dropZone.addEventListener('dragleave',e=>{ e.preventDefault(); dropZone.classList.remove('hover'); });
+dropZone.addEventListener('drop',e=>{ e.preventDefault(); dropZone.classList.remove('hover');
+  if(e.dataTransfer.files.length){ midiFile=e.dataTransfer.files[0]; dropZone.textContent="Cargado: "+midiFile.name; }
+});
+fileInput.addEventListener('change',e=>{ if(e.target.files.length){ midiFile=e.target.files[0]; dropZone.textContent="Cargado: "+midiFile.name; } });
 
-        const entry = {tick:mcTick,midi:midiPitch,velocity,block:mapped.block,noteMC:mapped.note,noteName:mapped.name};
-        if(!tickMap.has(mcTick)) tickMap.set(mcTick,[]);
-        tickMap.get(mcTick).push(entry);
-      });
+// ------------------ Procesamiento ------------------
+async function processMidi(){
+  if(!midiFile){ alert("Carga un archivo MIDI primero."); return; }
+  resultBody.innerHTML="";
+  finalData=[];
+
+  const buffer=await midiFile.arrayBuffer();
+  const midi=new Midi(buffer);
+  const tickMap=new Map();
+
+  midi.tracks.forEach(track=>{
+    const programNumber=track.instrument?.number ? track.instrument.number+1 : 1;
+    track.notes.forEach(note=>{
+      const tick=Math.round(note.time*midi.header.ppq);
+      const midiPitch=note.midi;
+      const isPerc=(track.isPercussion || track.channel===9);
+
+      let mapped;
+      if(isPerc){
+        mapped = percussionMap[midiPitch] || {block:"Snare Drum", pitch:12, name:"Percussion"};
+        mapped.noteMC=clampMC(mapped.pitch);
+        mapped.name = mapped.name||"Percussion";
+      } else {
+        const info = gmToMC[programNumber]||{block:"Harp",octave:0,name:"Harp"};
+        let mcNote = clampMC(Math.round(midiPitch-60+12+info.octave*12));
+        mapped = {block:info.block, noteMC:mcNote, name:info.name};
+      }
+
+      if(!tickMap.has(tick)) tickMap.set(tick,[]);
+      tickMap.get(tick).push(mapped);
     });
+  });
 
-    const ticksSorted = Array.from(tickMap.keys()).sort((a,b)=>a-b);
-    const rows=[];
-    for(let i=0;i<ticksSorted.length;i++){
-      const tick = ticksSorted[i];
-      const notes = pickTopNotes(tickMap.get(tick),3);
-      const nextTick = (i<ticksSorted.length-1)?ticksSorted[i+1]:tick;
-      const delta = nextTick-tick;
-      rows.push({tick,delta,notes});
-    }
-
-    rows.forEach(r=>{
-      r.notes.forEach(n=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${r.tick}</td><td>${r.delta}</td><td>${n.noteName} (${n.midi})</td><td>${n.block}</td><td>${n.noteMC}</td>`;
-        resultBody.appendChild(tr);
-      });
+  const ticksSorted=Array.from(tickMap.keys()).sort((a,b)=>a-b);
+  for(let i=0;i<ticksSorted.length;i++){
+    const tick=ticksSorted[i];
+    const nextTick=(i<ticksSorted.length-1)?ticksSorted[i+1]:tick;
+    const delta=nextTick-tick;
+    tickMap.get(tick).forEach(n=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${tick}</td><td>${delta}</td><td>${n.name}</td><td>${n.block}</td><td>${n.noteMC}</td>`;
+      resultBody.appendChild(tr);
+      finalData.push({tick,delta,name:n.name,block:n.block,pitch:n.noteMC});
     });
   }
+}
 
-  processBtn.addEventListener('click',()=>{
-    processBtn.disabled=true;
-    processMidi().finally(()=>processBtn.disabled=false);
-  });
-  </script>
+// ------------------ Descargar JSON ------------------
+document.getElementById('downloadBtn').addEventListener('click',()=>{
+  if(finalData.length===0){ alert("Procesa un MIDI primero."); return; }
+  const blob=new Blob([JSON.stringify(finalData,null,2)],{type:"application/json"});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download="noteblocks.json";
+  a.click();
+});
+
+document.getElementById('processBtn').addEventListener('click',()=>processMidi());
+</script>
+
 </body>
 </html>
