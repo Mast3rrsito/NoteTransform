@@ -2,61 +2,62 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>MIDI → NoteBlock</title>
+<title>MIDI → Minecraft NoteBlock PRO</title>
 <style>
 body { font-family:sans-serif; padding:2rem; background:#f0f2f5; }
 #dropZone { border:2px dashed #4b6cb7; padding:2rem; text-align:center; margin-bottom:1rem; cursor:pointer; }
 #dropZone.hover { background:#4b6cb7; color:white; }
 table { width:100%; border-collapse:collapse; margin-top:1rem; }
-th, td { padding:0.5rem; border:1px solid #ccc; text-align:left; }
+th, td { padding:0.4rem; border:1px solid #ccc; font-size:13px; }
 thead { background:#4b6cb7; color:white; }
 button { padding:0.5rem 1rem; margin:0.5rem 0; cursor:pointer; }
+.info { margin-top:10px; font-weight:bold; }
 </style>
 </head>
 <body>
 
-<h1>MIDI → Minecraft NoteBlock</h1>
+<h1>MIDI → Minecraft NoteBlock (Preciso con BPM)</h1>
 
 <div id="dropZone">Arrastra tu archivo MIDI aquí</div>
 <input type="file" id="fileInput" accept=".mid">
 <br>
 <button id="processBtn">Procesar MIDI</button>
-<button id="downloadBtn">Descargar JSON</button>
+
+<div class="info" id="midiInfo"></div>
 
 <table>
 <thead>
-<tr><th>Tick</th><th>Delta</th><th>Nota</th><th>Bloque</th><th>Pitch MC</th></tr>
+<tr>
+<th>Tick</th>
+<th>Delta Tick</th>
+<th>Tiempo (s)</th>
+<th>Nota MIDI</th>
+<th>Instrumento</th>
+<th>NoteBlock (0-24)</th>
+</tr>
 </thead>
 <tbody id="resultBody"></tbody>
 </table>
 
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
 <script>
-// ------------------ Mapeo GM → MC ------------------
-const gmToMC = {
-  1:{name:"Piano 1",block:"Harp",octave:0},2:{name:"Piano 2",block:"Pling",octave:0},3:{name:"Piano 3",block:"Pling",octave:0},
-  5:{name:"Nylon-str.Gt",block:"Guitar",octave:1},6:{name:"Flute",block:"Flute",octave:-1},10:{name:"Glockenspiel",block:"Bells",octave:-2},
-  12:{name:"Vibraphone",block:"Iron Xylophone",octave:0},14:{name:"Xylophone",block:"Xylophone",octave:-2},25:{name:"Acoustic Guitar",block:"Guitar",octave:1},
-  33:{name:"Acoustic Bass",block:"Bass",octave:2},81:{name:"Lead 1 (square)",block:"Bit",octave:0},106:{name:"Banjo",block:"Banjo",octave:0},
-  3:{name:"Pling",block:"Pling",octave:0},74:{name:"Flute",block:"Flute",octave:-1}
-};
 
-const percussionMap = {
-  35:{block:"Bass Drum",pitch:4},36:{block:"Bass Drum",pitch:8},38:{block:"Snare Drum",pitch:15},
-  42:{block:"Hi-Hat",pitch:21},46:{block:"Hi-Hat",pitch:22},59:{block:"Tuba",pitch:24},
-  60:{block:"Cow Bell",pitch:16},61:{block:"Cow Bell",pitch:9},62:{block:"Click",pitch:-3},
-  63:{block:"Cow Bell",pitch:-1},64:{block:"Cow Bell",pitch:-9},65:{block:"Cow Bell",pitch:5},
-  66:{block:"Cow Bell",pitch:-4},67:{block:"Xylophone",pitch:12},68:{block:"Xylophone",pitch:5}
+const gmToMC = {
+  1:{name:"Piano",octave:0},
+  25:{name:"Guitar",octave:1},
+  33:{name:"Bass",octave:2},
+  74:{name:"Flute",octave:-1},
+  81:{name:"Bit",octave:0},
+  106:{name:"Banjo",octave:0}
 };
 
 function clampMC(n){ return Math.max(0, Math.min(24, n)); }
 
-// ------------------ Manejo de archivos ------------------
 let midiFile=null;
 const dropZone=document.getElementById('dropZone');
 const fileInput=document.getElementById('fileInput');
 const resultBody=document.getElementById('resultBody');
-let finalData=[];
+const midiInfo=document.getElementById('midiInfo');
 
 dropZone.addEventListener('dragover',e=>{ e.preventDefault(); dropZone.classList.add('hover'); });
 dropZone.addEventListener('dragleave',e=>{ e.preventDefault(); dropZone.classList.remove('hover'); });
@@ -65,65 +66,78 @@ dropZone.addEventListener('drop',e=>{ e.preventDefault(); dropZone.classList.rem
 });
 fileInput.addEventListener('change',e=>{ if(e.target.files.length){ midiFile=e.target.files[0]; dropZone.textContent="Cargado: "+midiFile.name; } });
 
-// ------------------ Procesamiento ------------------
 async function processMidi(){
-  if(!midiFile){ alert("Carga un archivo MIDI primero."); return; }
+  if(!midiFile){ alert("Carga un MIDI primero."); return; }
+
   resultBody.innerHTML="";
-  finalData=[];
+  midiInfo.innerHTML="";
 
   const buffer=await midiFile.arrayBuffer();
   const midi=new Midi(buffer);
-  const tickMap=new Map();
+
+  const ppq = midi.header.ppq;
+  const tempoEvents = midi.header.tempos;
+
+  let bpm = 120;
+  if(tempoEvents.length > 0){
+    bpm = tempoEvents[0].bpm;
+  }
+
+  midiInfo.innerHTML = `
+  PPQ: ${ppq} | BPM inicial: ${bpm} | Cambios de tempo: ${tempoEvents.length}
+  `;
+
+  let notesAll=[];
 
   midi.tracks.forEach(track=>{
-    const programNumber=track.instrument?.number ? track.instrument.number+1 : 1;
+    const programNumber = track.instrument?.number 
+        ? track.instrument.number+1 
+        : 1;
+
     track.notes.forEach(note=>{
-      const tick=Math.round(note.time*midi.header.ppq);
-      const midiPitch=note.midi;
-      const isPerc=(track.isPercussion || track.channel===9);
+      const tick = note.ticks;   // ✅ TICKS REALES DEL MIDI
+      const midiPitch = note.midi;
 
-      let mapped;
-      if(isPerc){
-        mapped = percussionMap[midiPitch] || {block:"Snare Drum", pitch:12, name:"Percussion"};
-        mapped.noteMC=clampMC(mapped.pitch);
-        mapped.name = mapped.name||"Percussion";
-      } else {
-        const info = gmToMC[programNumber]||{block:"Harp",octave:0,name:"Harp"};
-        let mcNote = clampMC(Math.round(midiPitch-60+12+info.octave*12));
-        mapped = {block:info.block, noteMC:mcNote, name:info.name};
-      }
+      const info = gmToMC[programNumber] || {name:"Harp",octave:0};
 
-      if(!tickMap.has(tick)) tickMap.set(tick,[]);
-      tickMap.get(tick).push(mapped);
+      let mcPitch = clampMC(
+          Math.round(midiPitch - 60 + 12 + info.octave*12)
+      );
+
+      notesAll.push({
+        tick: tick,
+        time: note.time,
+        midi: midiPitch,
+        instrument: info.name,
+        mc: mcPitch
+      });
     });
   });
 
-  const ticksSorted=Array.from(tickMap.keys()).sort((a,b)=>a-b);
-  for(let i=0;i<ticksSorted.length;i++){
-    const tick=ticksSorted[i];
-    const nextTick=(i<ticksSorted.length-1)?ticksSorted[i+1]:tick;
-    const delta=nextTick-tick;
-    tickMap.get(tick).forEach(n=>{
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${tick}</td><td>${delta}</td><td>${n.name}</td><td>${n.block}</td><td>${n.noteMC}</td>`;
-      resultBody.appendChild(tr);
-      finalData.push({tick,delta,name:n.name,block:n.block,pitch:n.noteMC});
-    });
-  }
+  // Ordenar por tick real
+  notesAll.sort((a,b)=>a.tick-b.tick);
+
+  let lastTick = 0;
+
+  notesAll.forEach(n=>{
+    const delta = n.tick - lastTick;
+    lastTick = n.tick;
+
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${n.tick}</td>
+      <td>${delta}</td>
+      <td>${n.time.toFixed(4)}</td>
+      <td>${n.midi}</td>
+      <td>${n.instrument}</td>
+      <td>${n.mc}</td>
+    `;
+    resultBody.appendChild(tr);
+  });
 }
 
-// ------------------ Descargar JSON ------------------
-document.getElementById('downloadBtn').addEventListener('click',()=>{
-  if(finalData.length===0){ alert("Procesa un MIDI primero."); return; }
-  const blob=new Blob([JSON.stringify(finalData,null,2)],{type:"application/json"});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download="noteblocks.json";
-  a.click();
-});
+document.getElementById('processBtn').addEventListener('click',processMidi);
 
-document.getElementById('processBtn').addEventListener('click',()=>processMidi());
 </script>
-
 </body>
 </html>
