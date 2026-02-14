@@ -2,141 +2,193 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>MIDI → Minecraft NoteBlock PRO</title>
+<title>MIDI → Minecraft ULTRA</title>
 <style>
-body { font-family:sans-serif; padding:2rem; background:#f0f2f5; }
-#dropZone { border:2px dashed #4b6cb7; padding:2rem; text-align:center; margin-bottom:1rem; cursor:pointer; }
-#dropZone.hover { background:#4b6cb7; color:white; }
-table { width:100%; border-collapse:collapse; margin-top:1rem; }
-th, td { padding:0.4rem; border:1px solid #ccc; font-size:13px; }
-thead { background:#4b6cb7; color:white; }
-button { padding:0.5rem 1rem; margin:0.5rem 0; cursor:pointer; }
-.info { margin-top:10px; font-weight:bold; }
+body{font-family:sans-serif;padding:20px;background:#f2f2f2}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{border:1px solid #ccc;padding:6px;font-size:13px}
+thead{background:#222;color:white}
+button{padding:8px 15px;margin-top:10px}
 </style>
 </head>
 <body>
 
-<h1>MIDI → Minecraft NoteBlock (Preciso con BPM)</h1>
+<h2>MIDI → Minecraft Ultra Preciso</h2>
 
-<div id="dropZone">Arrastra tu archivo MIDI aquí</div>
 <input type="file" id="fileInput" accept=".mid">
-<br>
-<button id="processBtn">Procesar MIDI</button>
-
-<div class="info" id="midiInfo"></div>
+<button onclick="processMidi()">Procesar</button>
 
 <table>
 <thead>
 <tr>
 <th>Tick</th>
-<th>Delta Tick</th>
-<th>Tiempo (s)</th>
-<th>Nota MIDI</th>
-<th>Instrumento</th>
-<th>NoteBlock (0-24)</th>
+<th>Delta</th>
+<th>Notas (1,2,3)</th>
+<th>Acorde Detectado</th>
 </tr>
 </thead>
-<tbody id="resultBody"></tbody>
+<tbody id="result"></tbody>
 </table>
 
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
 <script>
 
-const gmToMC = {
-  1:{name:"Piano",octave:0},
-  25:{name:"Guitar",octave:1},
-  33:{name:"Bass",octave:2},
-  74:{name:"Flute",octave:-1},
-  81:{name:"Bit",octave:0},
-  106:{name:"Banjo",octave:0}
-};
+// ======================
+// CONSTANTES MUSICALES
+// ======================
 
-function clampMC(n){ return Math.max(0, Math.min(24, n)); }
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
-let midiFile=null;
-const dropZone=document.getElementById('dropZone');
-const fileInput=document.getElementById('fileInput');
-const resultBody=document.getElementById('resultBody');
-const midiInfo=document.getElementById('midiInfo');
-
-dropZone.addEventListener('dragover',e=>{ e.preventDefault(); dropZone.classList.add('hover'); });
-dropZone.addEventListener('dragleave',e=>{ e.preventDefault(); dropZone.classList.remove('hover'); });
-dropZone.addEventListener('drop',e=>{ e.preventDefault(); dropZone.classList.remove('hover');
-  if(e.dataTransfer.files.length){ midiFile=e.dataTransfer.files[0]; dropZone.textContent="Cargado: "+midiFile.name; }
-});
-fileInput.addEventListener('change',e=>{ if(e.target.files.length){ midiFile=e.target.files[0]; dropZone.textContent="Cargado: "+midiFile.name; } });
-
-async function processMidi(){
-  if(!midiFile){ alert("Carga un MIDI primero."); return; }
-
-  resultBody.innerHTML="";
-  midiInfo.innerHTML="";
-
-  const buffer=await midiFile.arrayBuffer();
-  const midi=new Midi(buffer);
-
-  const ppq = midi.header.ppq;
-  const tempoEvents = midi.header.tempos;
-
-  let bpm = 120;
-  if(tempoEvents.length > 0){
-    bpm = tempoEvents[0].bpm;
-  }
-
-  midiInfo.innerHTML = `
-  PPQ: ${ppq} | BPM inicial: ${bpm} | Cambios de tempo: ${tempoEvents.length}
-  `;
-
-  let notesAll=[];
-
-  midi.tracks.forEach(track=>{
-    const programNumber = track.instrument?.number 
-        ? track.instrument.number+1 
-        : 1;
-
-    track.notes.forEach(note=>{
-      const tick = note.ticks;   // ✅ TICKS REALES DEL MIDI
-      const midiPitch = note.midi;
-
-      const info = gmToMC[programNumber] || {name:"Harp",octave:0};
-
-      let mcPitch = clampMC(
-          Math.round(midiPitch - 60 + 12 + info.octave*12)
-      );
-
-      notesAll.push({
-        tick: tick,
-        time: note.time,
-        midi: midiPitch,
-        instrument: info.name,
-        mc: mcPitch
-      });
-    });
-  });
-
-  // Ordenar por tick real
-  notesAll.sort((a,b)=>a.tick-b.tick);
-
-  let lastTick = 0;
-
-  notesAll.forEach(n=>{
-    const delta = n.tick - lastTick;
-    lastTick = n.tick;
-
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td>${n.tick}</td>
-      <td>${delta}</td>
-      <td>${n.time.toFixed(4)}</td>
-      <td>${n.midi}</td>
-      <td>${n.instrument}</td>
-      <td>${n.mc}</td>
-    `;
-    resultBody.appendChild(tr);
-  });
+function midiToNoteName(n){
+    return NOTE_NAMES[n%12] + (Math.floor(n/12)-1);
 }
 
-document.getElementById('processBtn').addEventListener('click',processMidi);
+function clamp(n){ return Math.max(0,Math.min(24,n)); }
+
+// ======================
+// MAPEO GM → MC (Simplificado pero correcto base tabla)
+// ======================
+
+function getMCInstrument(program){
+
+    if(program>=25 && program<=32) return {block:"Guitar", octave:1};
+    if(program>=33 && program<=40) return {block:"Bass", octave:2};
+    if(program>=73 && program<=80) return {block:"Flute", octave:-1};
+    if(program>=81 && program<=88) return {block:"Bit", octave:0};
+    if(program>=9 && program<=16) return {block:"Bells", octave:-2};
+    return {block:"Harp", octave:0};
+}
+
+// Centro real MC ≈ F#3 (MIDI 54)
+function midiToMC(midi, octaveShift){
+    return clamp(midi - 54 + (octaveShift*12));
+}
+
+// ======================
+// DETECTOR REAL DE ACORDES
+// ======================
+
+function detectChord(midiNotes){
+
+    if(midiNotes.length < 2) return "-";
+
+    let pitchClasses = [...new Set(
+        midiNotes.map(n => n % 12)
+    )];
+
+    pitchClasses.sort((a,b)=>a-b);
+
+    for(let root of pitchClasses){
+
+        let intervals = pitchClasses
+            .map(n => (n-root+12)%12)
+            .sort((a,b)=>a-b);
+
+        let name = NOTE_NAMES[root];
+
+        const patterns = {
+            "": [0,4,7],
+            "m":[0,3,7],
+            "dim":[0,3,6],
+            "aug":[0,4,8],
+            "sus2":[0,2,7],
+            "sus4":[0,5,7],
+            "7":[0,4,7,10],
+            "m7":[0,3,7,10],
+            "maj7":[0,4,7,11]
+        };
+
+        for(let type in patterns){
+            let p = patterns[type];
+            if(p.every(i=>intervals.includes(i)))
+                return name + type;
+        }
+    }
+
+    return "-";
+}
+
+// ======================
+// PROCESAMIENTO ULTRA
+// ======================
+
+async function processMidi(){
+
+    const fileInput = document.getElementById("fileInput");
+    const result = document.getElementById("result");
+    result.innerHTML="";
+
+    if(!fileInput.files.length){
+        alert("Carga un MIDI");
+        return;
+    }
+
+    const buffer = await fileInput.files[0].arrayBuffer();
+    const midi = new Midi(buffer);
+
+    let allNotes=[];
+
+    midi.tracks.forEach(track=>{
+        const program = track.instrument.number+1;
+
+        track.notes.forEach(note=>{
+            allNotes.push({
+                tick: note.ticks,
+                midi: note.midi,
+                program: program
+            });
+        });
+    });
+
+    allNotes.sort((a,b)=>a.tick-b.tick);
+
+    let grouped={};
+    allNotes.forEach(n=>{
+        if(!grouped[n.tick]) grouped[n.tick]=[];
+        grouped[n.tick].push(n);
+    });
+
+    const ticks = Object.keys(grouped)
+        .map(Number)
+        .sort((a,b)=>a-b);
+
+    let lastTick=0;
+
+    ticks.forEach(tick=>{
+
+        const delta = tick - lastTick;
+        lastTick = tick;
+
+        const notes = grouped[tick];
+
+        const chord = detectChord(notes.map(n=>n.midi));
+
+        let display="";
+        notes.slice(0,3).forEach((n,i)=>{
+
+            const inst = getMCInstrument(n.program);
+            const mcNum = midiToMC(n.midi, inst.octave);
+            const name = midiToNoteName(n.midi);
+
+            display += `
+            ${i+1}: ${name}
+            | ${inst.block}
+            | NB:${mcNum}
+            <br>
+            `;
+        });
+
+        const row=document.createElement("tr");
+        row.innerHTML=`
+            <td>${tick}</td>
+            <td>${delta}</td>
+            <td>${display}</td>
+            <td>${chord}</td>
+        `;
+        result.appendChild(row);
+
+    });
+}
 
 </script>
 </body>
