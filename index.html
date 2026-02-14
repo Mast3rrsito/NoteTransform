@@ -2,30 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MIDI to Minecraft Note Blocks</title>
+  <title>MIDI → Minecraft Note Blocks</title>
   <style>
     body { font-family: sans-serif; padding: 2rem; }
     #dropZone {
-      border: 2px dashed #888;
-      padding: 2rem;
-      text-align: center;
-      margin-bottom: 1rem;
-      color: #555;
+      border: 2px dashed #888; padding: 2rem; text-align: center; margin-bottom: 1rem; color: #555;
     }
     #output { white-space: pre-wrap; border: 1px solid #ccc; padding: 1rem; height: 400px; overflow-y: scroll; }
-    input[type=file] { margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <h1>MIDI → Minecraft Note Blocks</h1>
-  
   <div id="dropZone">Drag & Drop a MIDI file here</div>
   <input type="file" id="fileInput" accept=".mid">
   <button id="processBtn">Process MIDI</button>
-  
   <h2>Output</h2>
   <pre id="output"></pre>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
   <script src="js/midi2blocks.js"></script>
 </body>
