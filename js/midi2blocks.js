@@ -3,6 +3,7 @@ import { writeUncompressed } from "https://cdn.jsdelivr.net/npm/prismarine-nbt@2
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const processBtn = document.getElementById('processBtn');
+const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 const downloadSchemBtn = document.getElementById('downloadSchemBtn');
 const resultBody = document.getElementById('resultBody');
 
@@ -18,15 +19,16 @@ dropZone.addEventListener('drop', e=>{
 });
 fileInput.addEventListener('change', e=>{ if(e.target.files.length){ midiFile = e.target.files[0]; dropZone.textContent = `Loaded: ${midiFile.name}`; } });
 
-// Map GM program / percussion to blocks
+// Instrument & percussion mapping
 const gmProgramMap = { 1:{block:"minecraft:gold_block"}, 2:{block:"minecraft:clay"}, 25:{block:"minecraft:emerald_block"}, 33:{block:"minecraft:stone"} };
 const percussionMap = { 35:{block:"minecraft:stone"}, 38:{block:"minecraft:gravel"}, 42:{block:"minecraft:clay"} };
 
 function clampNote(n){ return Math.max(0,Math.min(24,n)); }
 function secondsToMcTicks(s){ return Math.round(s*20); }
+function pickTopNotes(notes, max=3){ return notes.sort((a,b)=>b.velocity-a.velocity).slice(0,max); }
 
 processBtn.addEventListener('click', async ()=>{
-  if(!midiFile){ alert("Cargar MIDI primero"); return; }
+  if(!midiFile){ alert("Carga un MIDI primero"); return; }
   resultBody.innerHTML = "";
   const buffer = await midiFile.arrayBuffer();
   const midi = new Midi(buffer);
@@ -46,34 +48,49 @@ processBtn.addEventListener('click', async ()=>{
         mapped = {block:info.block, note:clampNote(note.midi-60+12)};
       }
       if(!tickMap.has(mcTick)) tickMap.set(mcTick, []);
-      tickMap.get(mcTick).push({block:mapped.block, note:mapped.note});
+      tickMap.get(mcTick).push({block:mapped.block, note:mapped.note, velocity:note.velocity});
     });
   });
 
   const ticks = Array.from(tickMap.keys()).sort((a,b)=>a-b);
-  lastExportData = {ticks: ticks.map(tick=>({tick,notes: tickMap.get(tick)}))};
+  lastExportData = [];
+  ticks.forEach((t,i)=>{
+    const notes = pickTopNotes(tickMap.get(t),3);
+    const nextTick = (i<ticks.length-1)?ticks[i+1]:t;
+    const delta = nextTick - t;
+    lastExportData.push({tick:t, delta, notes});
+  });
 
   // Render table
   resultBody.innerHTML="";
-  lastExportData.ticks.forEach(r=>{
+  lastExportData.forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.tick}</td><td>0</td><td>${r.notes.map(n=>`${n.block}(${n.note})`).join(", ")}</td>`;
+    tr.innerHTML = `<td>${r.tick}</td><td>${r.delta}</td><td>${r.notes.map(n=>`${n.block}(${n.note})`).join(", ")}</td>`;
     resultBody.appendChild(tr);
   });
 
+  downloadJsonBtn.style.display="inline-block";
   downloadSchemBtn.style.display="inline-block";
 });
 
-// Genera .schem completamente en navegador
+// Descargar JSON
+downloadJsonBtn.addEventListener('click', ()=>{
+  if(!lastExportData){ alert("Procesa el MIDI primero"); return; }
+  const blob = new Blob([JSON.stringify(lastExportData,null,2)],{type:"application/json"});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(midiFile?.name?.replace(/\.mid$/i,'')||'noteblocks')+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+// Genera .schem
 downloadSchemBtn.addEventListener('click', ()=>{
   if(!lastExportData){ alert("Procesa el MIDI primero"); return; }
-
-  const ticks = lastExportData.ticks;
+  const ticks = lastExportData;
   const Width = Math.max(...ticks.map(t=>t.tick))+1;
   const Height = 4;
   const Length = 1;
-
-  const Palette = {"minecraft:air":0, "minecraft:note_block":1};
+  const Palette = {"minecraft:air":0,"minecraft:note_block":1};
   let nextId=2;
   const Blocks=[];
 
@@ -99,9 +116,8 @@ downloadSchemBtn.addEventListener('click', ()=>{
 
   const buffer = writeUncompressed(nbt);
   const blob = new Blob([buffer],{type:"application/octet-stream"});
-  const url = URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;
+  a.href=URL.createObjectURL(blob);
   a.download=(midiFile?.name?.replace(/\.mid$/i,'')||'noteblocks')+".schem";
-  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  document.body.appendChild(a); a.click(); a.remove();
 });
