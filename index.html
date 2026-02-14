@@ -1,166 +1,233 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ticks MIDI — Precisión</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<title>MIDI → Minecraft PRO</title>
+<script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
 <style>
-  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f6f7fb;padding:20px}
-  header{margin-bottom:12px}
-  #dropZone{border:2px dashed #4b6cb7;padding:18px;text-align:center;border-radius:10px;background:#fff;cursor:pointer}
-  #dropZone.hover{background:#4b6cb7;color:#fff}
-  .controls{margin-top:10px;display:flex;gap:8px;align-items:center}
-  table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff;border-radius:8px;overflow:hidden}
-  thead th{background:#4b6cb7;color:#fff;padding:10px;text-align:left}
-  td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
-  .muted{color:#666;font-size:13px}
-  .small{font-size:12px;color:#444}
+body{font-family:sans-serif;background:#f4f6fa;padding:20px}
+table{width:100%;border-collapse:collapse;margin-top:20px;background:white}
+th,td{border:1px solid #ddd;padding:6px;font-size:13px}
+thead{background:#222;color:white}
+button{padding:6px 12px;margin-top:10px}
 </style>
 </head>
 <body>
-  <header>
-    <h1>Verificador de ticks MIDI (preciso)</h1>
-    <div class="muted">Carga un .mid — se mostrarán ticks reales, delta ticks y tiempo entre eventos (segundos) respetando cambios de tempo.</div>
-  </header>
 
-  <div id="dropZone">Haz click o arrastra un archivo .mid aquí</div>
+<h2>MIDI → Minecraft NoteBlock Mapper (GM 2025)</h2>
 
-  <div class="controls">
-    <input id="fileInput" type="file" accept=".mid,.midi">
-    <button id="processBtn">Procesar</button>
-    <div id="info" class="small"></div>
-  </div>
+<input type="file" id="fileInput" accept=".mid">
+<button onclick="processMidi()">Procesar</button>
 
-  <table aria-live="polite">
-    <thead>
-      <tr>
-        <th style="width:110px">Tick (MIDI)</th>
-        <th style="width:110px">DeltaTicks</th>
-        <th style="width:130px">Δ segundos</th>
-        <th style="width:130px">Δ Minecraft ticks (20TPS)</th>
-        <th>Nota (MIDI)</th>
-      </tr>
-    </thead>
-    <tbody id="resultBody"></tbody>
-  </table>
+<table>
+<thead>
+<tr>
+<th>Tick</th>
+<th>Delta</th>
+<th>Nota</th>
+<th>Bloque</th>
+<th>ID</th>
+<th>NoteBlock#</th>
+</tr>
+</thead>
+<tbody id="result"></tbody>
+</table>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
-  <script>
-  // ---------- helpers ----------
-  const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-  function midiToNoteName(n){ return NOTE_NAMES[n % 12] + (Math.floor(n/12) - 1); }
-  function formatSec(s){ return (s>=0) ? s.toFixed(4) : "0.0000"; }
-  function roundInt(v){ return Math.round(v); }
-  // ---------- UI elements ----------
-  const dropZone = document.getElementById('dropZone');
-  const fileInput = document.getElementById('fileInput');
-  const processBtn = document.getElementById('processBtn');
-  const resultBody = document.getElementById('resultBody');
-  const info = document.getElementById('info');
+<script>
 
-  // drop handlers
-  dropZone.addEventListener('click', ()=> fileInput.click());
-  dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('hover'); });
-  dropZone.addEventListener('dragleave', e=>{ e.preventDefault(); dropZone.classList.remove('hover'); });
-  dropZone.addEventListener('drop', e=>{ e.preventDefault(); dropZone.classList.remove('hover'); if(e.dataTransfer.files.length){ fileInput.files = e.dataTransfer.files; fileSelected(e.dataTransfer.files[0]); } });
+// ===============================
+// NOTE NAMES
+// ===============================
 
-  fileInput.addEventListener('change', e => { if(e.target.files.length) fileSelected(e.target.files[0]); });
+const NOTE_NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+function midiToNoteName(n){
+    return NOTE_NAMES[n%12]+(Math.floor(n/12)-1);
+}
 
-  function fileSelected(f){
-    dropZone.textContent = `Cargado: ${f.name}`;
-    info.textContent = '';
-    resultBody.innerHTML = '';
-  }
+// ===============================
+// BASE MC INSTRUMENT LIST
+// ===============================
 
-  // ---------- Core: process MIDI and compute ticks/deltas precisely ----------
-  processBtn.addEventListener('click', async ()=>{
-    const f = fileInput.files[0];
-    if(!f){ alert("Selecciona un archivo .mid antes."); return; }
+const MC_BLOCKS = {
+0:"Harp",
+1:"Bass",
+2:"Bass Drum",
+3:"Snare Drum",
+4:"Click",
+5:"Guitar",
+6:"Flute",
+7:"Bell",
+8:"Chime",
+9:"Xylophone",
+10:"Iron Xylophone",
+11:"Cow Bell",
+12:"Didgeridoo",
+13:"Bit",
+14:"Banjo",
+15:"Pling"
+};
 
-    processBtn.disabled = true;
-    resultBody.innerHTML = ''; info.textContent = 'Procesando...';
+// ===============================
+// GM → MC MAPPING (RESUMEN EXACTO TABLA)
+// Solo primer instrumento recomendado
+// ===============================
 
-    try{
-      const buffer = await f.arrayBuffer();
-      const midi = new Midi(buffer);
+function mapProgramToMC(program){
 
-      const ppq = midi.header.ppq ?? null;
-      const tempoEvents = midi.header.tempos ?? [];
-      const initialBpm = (tempoEvents.length>0) ? tempoEvents[0].bpm : 120;
+// Pianos
+if(program==1) return {id:0,shift:0};
+if(program==2||program==3||program==4) return {id:15,shift:0};
 
-      // Collect all note-on events (ToneJS provides .notes with .ticks and .time)
-      const notes = [];
-      midi.tracks.forEach((track, trackIndex) => {
-        const program = (track.instrument && typeof track.instrument.number === 'number') ? track.instrument.number + 1 : null;
-        const isPerc = !!track.isPercussion;
-        track.notes.forEach(n => {
-          // use n.ticks (MIDI ticks) and n.time (seconds, already tempo-mapped by ToneJS)
-          notes.push({
-            tick: Math.round(n.ticks),    // MIDI tick (integer)
-            time: n.time,                // seconds (float) respecting tempo map
-            midi: n.midi,
-            velocity: n.velocity ?? 0.8,
-            program,
-            isPerc
-          });
-        });
-      });
+// Guitar
+if(program>=25&&program<=32) return {id:5,shift:1};
 
-      if(notes.length === 0){
-        info.textContent = 'No se encontraron notas en el MIDI.';
-        processBtn.disabled = false;
-        return;
-      }
+// Bass
+if(program>=33&&program<=40) return {id:1,shift:2};
 
-      // Sort by tick (primary) and time (secondary) to be deterministic
-      notes.sort((a,b) => (a.tick - b.tick) || (a.time - b.time));
+// Strings / Ensemble / Choir
+if(program>=41&&program<=56) return {id:6,shift:-1};
 
-      // Build output rows: compute deltaTicks (from previous processed note) and deltaSeconds
-      let lastTick = notes[0].tick;     // start from first event tick
-      let lastTime = notes[0].time;
-      // But first event delta should be 0 relative to previous start
-      // We'll emit the first event with delta 0
-      // Iterate and push rows
-      for(let i=0;i<notes.length;i++){
-        const cur = notes[i];
-        const deltaTicks = cur.tick - lastTick;
-        const deltaSeconds = cur.time - lastTime;
-        const deltaMcTicks = Math.round(deltaSeconds * 20); // Minecraft ticks (20 TPS)
+// Brass
+if(program>=57&&program<=64) return {id:6,shift:-1};
 
-        // For the first note: if i==0, define delta = 0 (user expectation)
-        const emitDeltaTicks = (i === 0) ? 0 : deltaTicks;
-        const emitDeltaSeconds = (i === 0) ? 0 : deltaSeconds;
-        const emitDeltaMc = (i === 0) ? 0 : deltaMcTicks;
+// Reed
+if(program>=65&&program<=72) return {id:6,shift:-1};
 
-        // Render row
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${cur.tick}</td>
-          <td>${emitDeltaTicks}</td>
-          <td>${formatSec(emitDeltaSeconds)}</td>
-          <td>${emitDeltaMc}</td>
-          <td>${midiToNoteName(cur.midi)}</td>
-        `;
-        resultBody.appendChild(tr);
+// Pipe
+if(program>=73&&program<=80) return {id:6,shift:-1};
 
-        // Update lastTick & lastTime only when moving forward in time
-        // IMPORTANT: if multiple notes share the same tick/time, delta should be 0 for the next ones.
-        lastTick = cur.tick;
-        lastTime = cur.time;
-      }
+// Synth Lead
+if(program>=81&&program<=88) return {id:13,shift:0};
 
-      // Show helpful metadata
-      info.innerHTML = `PPQ: ${ppq ?? 'n/a'} — BPM inicial: ${initialBpm} — Eventos de cambio de tempo: ${tempoEvents.length}`;
+// Synth Pad
+if(program>=89&&program<=96) return {id:6,shift:-1};
 
-    } catch(err){
-      console.error(err);
-      alert("Error procesando MIDI. Mira la consola para más detalles.");
-      info.textContent = 'Error al procesar el MIDI (ver consola).';
-    } finally {
-      processBtn.disabled = false;
-    }
-  });
-  </script>
+// FX
+if(program>=97&&program<=104) return {id:8,shift:-2};
+
+// Ethnic
+if(program>=105&&program<=112) return {id:14,shift:0};
+
+// Percussive instruments (melodic)
+if(program>=113&&program<=120) return {id:2,shift:0};
+
+// Default
+return {id:0,shift:0};
+}
+
+// ===============================
+// PERCUSSION MAP (CANAL 10)
+// Simplificado usando tu tabla oficial
+// ===============================
+
+function mapDrumToMC(note){
+
+// Kick
+if(note==35||note==36) return {id:2,pitch:4};
+
+// Snare
+if(note==38||note==40) return {id:3,pitch:15};
+
+// HiHat
+if(note==42||note==44) return {id:4,pitch:21};
+
+// Tom
+if(note>=41&&note<=50) return {id:2,pitch:8};
+
+// Default snare
+return {id:3,pitch:12};
+}
+
+// ===============================
+// MIDI → NoteBlock number
+// Centro MC ≈ F#3 (54)
+// ===============================
+
+function midiToNoteBlock(midi,shift){
+
+let nb = midi - 54 + (shift*12);
+
+if(nb<0) nb=0;
+if(nb>24) nb=24;
+
+return nb;
+}
+
+// ===============================
+// MAIN PROCESS
+// ===============================
+
+async function processMidi(){
+
+const fileInput=document.getElementById("fileInput");
+const result=document.getElementById("result");
+result.innerHTML="";
+
+if(!fileInput.files.length){
+alert("Carga un MIDI");
+return;
+}
+
+const buffer=await fileInput.files[0].arrayBuffer();
+const midi=new Midi(buffer);
+
+let notes=[];
+
+midi.tracks.forEach(track=>{
+
+const program=track.instrument.number+1;
+const isDrum=track.channel==9;
+
+track.notes.forEach(n=>{
+notes.push({
+tick:n.ticks,
+time:n.time,
+midi:n.midi,
+program:program,
+isDrum:isDrum
+});
+});
+});
+
+notes.sort((a,b)=>a.tick-b.tick||a.time-b.time);
+
+let lastTick=notes[0]?.tick||0;
+
+notes.forEach((n,i)=>{
+
+let delta=i==0?0:n.tick-lastTick;
+lastTick=n.tick;
+
+let blockData;
+let noteNumber;
+
+if(n.isDrum){
+
+blockData=mapDrumToMC(n.midi);
+noteNumber=blockData.pitch;
+
+}else{
+
+blockData=mapProgramToMC(n.program);
+noteNumber=midiToNoteBlock(n.midi,blockData.shift);
+}
+
+let row=document.createElement("tr");
+row.innerHTML=`
+<td>${n.tick}</td>
+<td>${delta}</td>
+<td>${midiToNoteName(n.midi)}</td>
+<td>${MC_BLOCKS[blockData.id]}</td>
+<td>${blockData.id}</td>
+<td>${noteNumber}</td>
+`;
+
+result.appendChild(row);
+
+});
+
+}
+
+</script>
 </body>
 </html>
