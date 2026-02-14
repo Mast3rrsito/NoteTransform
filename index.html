@@ -2,28 +2,53 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>NoteTransform - MIDI → .schem</title>
+<title>NoteTransform - MIDI to Minecraft</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-/* mismo CSS que antes: body, header, table, buttons, dropZone, etc. */
+body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+header { background: linear-gradient(to right, #182848, #4b6cb7); color:white; width:100%; text-align:center; padding:2rem; box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+h1 { margin:0; font-size:2rem; }
+main { max-width:900px; width:100%; padding:2rem; display:flex; flex-direction:column; gap:1rem; }
+#dropZone { border:2px dashed #4b6cb7; border-radius:12px; padding:2rem; text-align:center; color:#4b6cb7; font-weight:600; cursor:pointer; transition:0.2s; }
+#dropZone.hover { background:#4b6cb7; color:white; }
+.controls { display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; }
+button, input[type=file] { padding:0.6rem 1rem; border-radius:8px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; }
+button { background:#4b6cb7; color:white; transition:0.2s; }
+button:hover { background:#182848; }
+button.green { background:#28a745; }
+button.orange { background:#f39c12; }
+table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; border-radius:8px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.08); }
+thead th { background:#4b6cb7; color:white; padding:0.9rem 1rem; text-align:left; position:sticky; top:0; }
+th, td { padding:0.9rem 1rem; border-bottom:1px solid #eee; }
+tbody tr:nth-child(even) td { background: #fff; }
+#tableWrap { max-height:420px; overflow:auto; border-radius:8px; }
+#outputHeader { display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+.muted { color:#666; font-size:0.95rem; }
 </style>
 </head>
 <body>
 <header>
   <h1>NoteTransform</h1>
-  <p>MIDI → Minecraft note blocks (.schem) - totalmente web</p>
+  <p>MIDI → Minecraft Note Blocks (.schem) - totalmente web</p>
 </header>
 <main>
   <div id="dropZone">Arrastra tu MIDI aquí</div>
+
   <div class="controls">
     <input type="file" id="fileInput" accept=".mid,.midi">
-    <button id="processBtn">Process MIDI</button>
-    <button id="downloadSchemBtn" style="display:none" class="orange">Download .schem</button>
+    <button id="processBtn">Procesar MIDI</button>
+    <button id="downloadJsonBtn" style="display:none" class="green">Descargar JSON</button>
+    <button id="downloadSchemBtn" style="display:none" class="orange">Descargar .schem</button>
+    <div class="muted">Después de procesar, podrás descargar JSON o .schem para Litematica.</div>
+  </div>
+
+  <div id="outputHeader">
+    <h3>Output</h3>
   </div>
   <div id="tableWrap">
     <table id="resultTable">
       <thead>
-        <tr><th>Tick</th><th>Delta</th><th>Notas</th></tr>
+        <tr><th>Tick</th><th>Delta</th><th>Notas (Block / Pitch)</th></tr>
       </thead>
       <tbody id="resultBody"></tbody>
     </table>
