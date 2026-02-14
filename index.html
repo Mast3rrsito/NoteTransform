@@ -1,59 +1,69 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>NoteTransform - MIDI → Minecraft</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NoteTransform - MIDI → Minecraft (.schem)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
-header { background: linear-gradient(to right, #182848, #4b6cb7); color:white; width:100%; text-align:center; padding:2rem; box-shadow:0 4px 8px rgba(0,0,0,0.2);}
-h1 { margin:0; font-size:2rem; }
-main { max-width:900px; width:100%; padding:2rem; display:flex; flex-direction:column; gap:1rem; }
-#dropZone { border:2px dashed #4b6cb7; border-radius:12px; padding:2rem; text-align:center; color:#4b6cb7; font-weight:600; cursor:pointer; transition:0.2s; }
-#dropZone.hover { background:#4b6cb7; color:white; }
-.controls { display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; }
-button, input[type=file] { padding:0.6rem 1rem; border-radius:8px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; }
-button { background:#4b6cb7; color:white; transition:0.2s; }
-button:hover { background:#182848; }
-button.green { background:#28a745; }
-button.orange { background:#f39c12; }
-table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; border-radius:8px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.08); }
-thead th { background:#4b6cb7; color:white; padding:0.9rem 1rem; text-align:left; position:sticky; top:0; }
-th, td { padding:0.9rem 1rem; border-bottom:1px solid #eee; }
-tbody tr:nth-child(even) td { background: #fff; }
-#tableWrap { max-height:420px; overflow:auto; border-radius:8px; }
-#outputHeader { display:flex; justify-content:space-between; gap:1rem; align-items:center; }
-.muted { color:#666; font-size:0.95rem; }
+  body { font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; background:#f0f2f5; margin:0; display:flex; flex-direction:column; align-items:center; min-height:100vh;}
+  header{width:100%;background:linear-gradient(90deg,#182848,#4b6cb7);color:#fff;padding:2rem;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+  main{width:100%;max-width:980px;padding:2rem;display:flex;flex-direction:column;gap:1rem}
+  #dropZone{border:2px dashed #4b6cb7;border-radius:12px;padding:1.5rem;text-align:center;color:#4b6cb7;font-weight:700;cursor:pointer;background:#fff}
+  #dropZone.hover{background:#4b6cb7;color:#fff}
+  .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+  button,input[type=file]{padding:.6rem 1rem;border-radius:8px;border:none;font-weight:600;cursor:pointer}
+  button{background:#4b6cb7;color:#fff}
+  button.green{background:#28a745}
+  button.orange{background:#f39c12}
+  #tableWrap{background:#fff;border-radius:8px;overflow:auto;box-shadow:0 1px 6px rgba(0,0,0,.06)}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#4b6cb7;color:#fff;padding:.9rem 1rem;text-align:left;position:sticky;top:0}
+  th,td{padding:.8rem 1rem;border-bottom:1px solid #eee;font-size:0.95rem}
+  .muted{color:#666;font-size:.95rem}
+  #status{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+  progress{width:220px;height:12px}
+  footer{padding:1rem;color:#666}
 </style>
 </head>
 <body>
-<header>
-  <h1>NoteTransform</h1>
-  <p>MIDI → Minecraft Note Blocks (.schem) - totalmente web</p>
-</header>
-<main>
-  <div id="dropZone">Arrastra tu MIDI aquí</div>
+  <header>
+    <h1>NoteTransform</h1>
+    <p class="muted">Convierte MIDI a schematic (.schem) para Litematica — totalmente en el navegador</p>
+  </header>
 
-  <div class="controls">
-    <input type="file" id="fileInput" accept=".mid,.midi">
-    <button id="processBtn">Procesar MIDI</button>
-    <button id="downloadJsonBtn" style="display:none" class="green">Descargar JSON</button>
-    <button id="downloadSchemBtn" style="display:none" class="orange">Descargar .schem</button>
-    <div class="muted">Después de procesar, podrás descargar JSON o .schem para Litematica.</div>
-  </div>
+  <main>
+    <div id="dropZone">Arrastra y suelta tu archivo MIDI (.mid) aquí — o haz click para seleccionar</div>
 
-  <div id="outputHeader"><h3>Output</h3></div>
-  <div id="tableWrap">
-    <table id="resultTable">
-      <thead>
-        <tr><th>Tick</th><th>Delta</th><th>Notas (Block / Pitch / Musical)</th></tr>
-      </thead>
-      <tbody id="resultBody"></tbody>
-    </table>
-  </div>
-</main>
+    <div class="controls">
+      <input id="fileInput" type="file" accept=".mid,.midi" />
+      <button id="processBtn">Procesar MIDI</button>
+      <button id="downloadJsonBtn" class="green" style="display:none">Descargar JSON</button>
+      <button id="downloadSchemBtn" class="orange" style="display:none">Descargar .schem</button>
+      <div class="muted" id="infoText">—</div>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
-<script type="module" src="js/main.js"></script>
+    <div id="status">
+      <div id="infoBPM" class="muted"></div>
+      <div id="progressWrap" style="display:none;align-items:center">
+        <progress id="progressBar" value="0" max="1"></progress>
+        <div id="progressText" class="muted" style="margin-left:.5rem"></div>
+      </div>
+    </div>
+
+    <div id="tableWrap">
+      <table aria-live="polite">
+        <thead><tr><th style="width:110px">Tick</th><th style="width:110px">Delta</th><th>Notas (Block / Pitch / Musical)</th></tr></thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer>Listo para GitHub Pages — sin Node. Si algo falla revisa la consola del navegador (F12).</footer>
+
+  <!-- Tone.js midi parser (global Midi) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
+  <!-- main module -->
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
