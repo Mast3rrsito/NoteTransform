@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>NoteTransform - MIDI to Minecraft</title>
+<title>NoteTransform - MIDI → Minecraft</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
 body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
@@ -42,13 +42,11 @@ tbody tr:nth-child(even) td { background: #fff; }
     <div class="muted">Después de procesar, podrás descargar JSON o .schem para Litematica.</div>
   </div>
 
-  <div id="outputHeader">
-    <h3>Output</h3>
-  </div>
+  <div id="outputHeader"><h3>Output</h3></div>
   <div id="tableWrap">
     <table id="resultTable">
       <thead>
-        <tr><th>Tick</th><th>Delta</th><th>Notas (Block / Pitch)</th></tr>
+        <tr><th>Tick</th><th>Delta</th><th>Notas (Block / Pitch / Musical)</th></tr>
       </thead>
       <tbody id="resultBody"></tbody>
     </table>
@@ -56,6 +54,6 @@ tbody tr:nth-child(even) td { background: #fff; }
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.js"></script>
-<script type="module" src="js/midi2schem.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
