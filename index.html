@@ -5,50 +5,20 @@
   <title>NoteTransform - MIDI to Minecraft</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background: #f5f7fa;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column; align-items: center;
-      min-height: 100vh;
-    }
-    header {
-      background: #4b6cb7;
-      background: linear-gradient(to right, #182848, #4b6cb7);
-      color: white; width: 100%; text-align: center; padding: 2rem 1rem;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    h1 { margin: 0; font-size: 2rem; }
-    main {
-      max-width: 900px; width: 100%; padding: 2rem;
-      display: flex; flex-direction: column; gap: 1.5rem;
-    }
-    #dropZone {
-      border: 2px dashed #4b6cb7;
-      border-radius: 12px;
-      padding: 2rem;
-      text-align: center;
-      color: #4b6cb7;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s;
-    }
-    #dropZone.hover { background: #4b6cb7; color: white; }
-    button, input[type=file] {
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 1rem;
-    }
-    button { background: #4b6cb7; color: white; transition: background 0.2s; }
-    button:hover { background: #182848; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { padding: 0.5rem 1rem; text-align: center; border-bottom: 1px solid #ccc; }
-    th { background: #4b6cb7; color: white; }
-    td { background: white; }
-    #output { max-height: 400px; overflow-y: auto; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+    header { background: linear-gradient(to right, #182848, #4b6cb7); color:white; width:100%; text-align:center; padding:2rem; box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+    h1 { margin:0; font-size:2rem; }
+    main { max-width:900px; width:100%; padding:2rem; display:flex; flex-direction:column; gap:1rem; }
+    #dropZone { border:2px dashed #4b6cb7; border-radius:12px; padding:2rem; text-align:center; color:#4b6cb7; font-weight:600; cursor:pointer; transition:0.2s; }
+    #dropZone.hover { background:#4b6cb7; color:white; }
+    button, input[type=file] { padding:0.75rem 1.5rem; border-radius:8px; border:none; cursor:pointer; font-weight:600; font-size:1rem; }
+    button { background:#4b6cb7; color:white; transition:0.2s; }
+    button:hover { background:#182848; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; }
+    th, td { padding:0.5rem 1rem; text-align:center; border-bottom:1px solid #ccc; }
+    th { background:#4b6cb7; color:white; }
+    td { background:white; }
+    #output { max-height:400px; overflow-y:auto; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
@@ -60,7 +30,6 @@
     <div id="dropZone">Drag & Drop your MIDI file here</div>
     <input type="file" id="fileInput" accept=".mid">
     <button id="processBtn">Process MIDI</button>
-
     <div id="output"></div>
   </main>
 
